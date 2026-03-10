@@ -362,3 +362,4 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/VoiceInputApp/model/ggml-large-v3-turbo-q8_0.bin
