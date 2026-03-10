@@ -5,27 +5,38 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:VoiceInputApp"
         mc:Ignorable="d"
-        Title="Voice Input" Height="115" Width="240"
+        Title="Voice Input" Height="150" Width="100"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        Topmost="True" WindowStartupLocation="Manual"
-        MouseLeftButtonDown="Window_MouseLeftButtonDown">
+        Topmost="True" ShowInTaskbar="False">
     
-    <Border Background="#1E1E1E" CornerRadius="15" BorderBrush="#333333" BorderThickness="1">
+    <Window.Resources>
+        <Storyboard x:Key="ProcessingAnimation" RepeatBehavior="Forever">
+            <ColorAnimationUsingKeyFrames Storyboard.TargetName="Circle" Storyboard.TargetProperty="(Shape.Fill).(SolidColorBrush.Color)">
+                <EasingColorKeyFrame KeyTime="0:0:0" Value="#2A2A2A"/>
+                <EasingColorKeyFrame KeyTime="0:0:0.8" Value="#444466"/>
+                <EasingColorKeyFrame KeyTime="0:0:1.6" Value="#2A2A2A"/>
+            </ColorAnimationUsingKeyFrames>
+        </Storyboard>
+    </Window.Resources>
+
+    <Border x:Name="MainBorder" Background="#1E1E1E" CornerRadius="15" BorderBrush="#333333" BorderThickness="1"
+            MouseLeftButtonDown="Window_MouseLeftButtonDown">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="30"/>
+                <RowDefinition Height="20"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
             <!-- Верхняя панель управления -->
-            <Grid Grid.Row="0" Margin="10,0">
-                <Rectangle Width="35" Height="4" Fill="#444444" RadiusX="2" RadiusY="2"
-                           VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            <Grid Grid.Row="0" Background="Transparent">
+                <Rectangle Width="30" Height="4" Fill="#444444" RadiusX="2" RadiusY="2"
+                           VerticalAlignment="Center" HorizontalAlignment="Center" IsHitTestVisible="False"/>
                 
                 <Button Content="&#xE8BB;" FontFamily="Segoe MDL2 Assets" Foreground="#888888"
                         Background="Transparent" BorderThickness="0" FontSize="10"
-                        HorizontalAlignment="Right" VerticalAlignment="Center"
-                        Click="CloseButton_Click" Cursor="Hand">
+                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,10,0"
+                        Click="CloseButton_Click" Cursor="Hand" Focusable="False">
                     <Button.Style>
                         <Style TargetType="Button">
                             <Setter Property="Template">
@@ -37,7 +48,7 @@
                             </Setter>
                             <Style.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Foreground" Value="White"/>
+                                    <Setter Property="Foreground" Value="#FF4444"/>
                                 </Trigger>
                             </Style.Triggers>
                         </Style>
@@ -45,20 +56,42 @@
                 </Button>
             </Grid>
 
-            <!-- Основной контент с иконками -->
-            <Grid Grid.Row="1" Margin="15,0,15,10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="2*"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
+            <!-- Выбор языка -->
+            <ComboBox x:Name="LanguageSelector" Grid.Row="1" Width="50" Height="18" FontSize="10"
+                      Background="#2A2A2A" Foreground="#AAAAAA" BorderThickness="0"
+                      HorizontalAlignment="Center" VerticalAlignment="Top" SelectionChanged="LanguageSelector_SelectionChanged"
+                      Focusable="False">
+                <ComboBoxItem Content="Русский" IsSelected="True" Tag="ru"/>
+                <ComboBoxItem Content="English" Tag="en"/>
+                <ComboBoxItem Content="Ўзбек" Tag="uz"/>
+                <ComboBox.Style>
+                    <Style TargetType="ComboBox">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ComboBox">
+                                    <Grid>
+                                        <ToggleButton Content="{TemplateBinding SelectionBoxItem}" 
+                                                      Background="{TemplateBinding Background}"
+                                                      Foreground="{TemplateBinding Foreground}"
+                                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+                                        <Popup IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}" Placement="Bottom">
+                                            <Border Background="#1E1E1E" BorderBrush="#333333" BorderThickness="1">
+                                                <ItemsPresenter/>
+                                            </Border>
+                                        </Popup>
+                                    </Grid>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ComboBox.Style>
+            </ComboBox>
 
-                <!-- Кнопка Настройки -->
-
-                <!-- Кнопка Микрофона (Центральная) -->
-                <Button Grid.Column="1" x:Name="ControlButton" Click="ControlButton_Click"
+            <!-- Центральная кнопка -->
+            <Grid Grid.Row="2" Margin="5,0,5,15">
+                <Button x:Name="ControlButton" Click="ControlButton_Click"
                         Background="#2A2A2A" BorderThickness="0" Width="64" Height="64"
-                        Cursor="Hand">
+                        Cursor="Hand" Tag="Idle" Focusable="False">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Grid>
@@ -71,17 +104,28 @@
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="Circle" Property="Fill" Value="#353535"/>
                                 </Trigger>
+                                <Trigger Property="Tag" Value="Recording">
+                                    <Setter TargetName="Circle" Property="Fill" Value="#442222"/>
+                                    <Setter TargetName="MicIcon" Property="Foreground" Value="#FF4444"/>
+                                </Trigger>
+                                <Trigger Property="Tag" Value="Processing">
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard Storyboard="{StaticResource ProcessingAnimation}" Name="ProcAnim"/>
+                                    </Trigger.EnterActions>
+                                    <Trigger.ExitActions>
+                                        <StopStoryboard BeginStoryboardName="ProcAnim"/>
+                                    </Trigger.ExitActions>
+                                    <Setter TargetName="MicIcon" Property="Foreground" Value="#6699FF"/>
+                                </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Button.Template>
                 </Button>
-
-                <!-- Кнопка Помощь -->
             </Grid>
             
-            <!-- Индикация статуса (скрытая, видна при наведении или работе) -->
-            <TextBlock x:Name="StatusText" Text="Ready" Visibility="Collapsed"/>
-            <TextBlock x:Name="ActivityText" Text="" Visibility="Collapsed"/>
+            <TextBlock x:Name="StatusText" Text="Ready" Grid.Row="2" VerticalAlignment="Bottom" 
+                       HorizontalAlignment="Center" Foreground="#AAAAAA" FontSize="10" 
+                       FontWeight="Medium" Margin="0,0,0,3"/>
         </Grid>
     </Border>
 </Window>

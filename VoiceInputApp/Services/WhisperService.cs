@@ -4,38 +4,74 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Whisper.net;
-using Whisper.net.Ggml;
 
 namespace VoiceInputApp.Services
 {
     public class WhisperService : IDisposable
     {
-        private readonly WhisperFactory _factory;
-        private readonly WhisperProcessor _processor;
+        private WhisperFactory? _factory;
+        private string _lastContext = string.Empty;
+        
+        public string CurrentLanguage { get; set; } = "ru";
 
         public WhisperService(string modelPath)
         {
             if (!File.Exists(modelPath))
                 throw new FileNotFoundException("Whisper model file not found", modelPath);
 
-            _factory = WhisperFactory.FromPath(modelPath);
-            _processor = _factory.CreateBuilder()
-                .WithLanguage("ru") // Принудительно русский язык
-                .Build();
+            InitializeFactory(modelPath);
+        }
+
+        private void InitializeFactory(string modelPath)
+        {
+            try
+            {
+                // Попытка инициализировать фабрику (Clblast рантайм подгрузится автоматически если доступен)
+                _factory = WhisperFactory.FromPath(modelPath);
+            }
+            catch (Exception)
+            {
+                _factory = WhisperFactory.FromPath(modelPath);
+            }
+        }
+
+        public void ResetContext()
+        {
+            _lastContext = string.Empty;
         }
 
         public async Task<string> TranscribeAsync(byte[] audioPcmData)
         {
-            // Конвертируем 16-bit PCM (byte[]) в float[]
+            if (_factory == null || audioPcmData == null || audioPcmData.Length == 0) return string.Empty;
+
             var samples = ConvertPcmToFloat(audioPcmData);
 
+            using var processor = _factory.CreateBuilder()
+                .WithLanguage(CurrentLanguage)
+                .WithThreads(Math.Max(1, Environment.ProcessorCount))
+                .WithPrompt(_lastContext)
+                .Build();
+
             var result = new List<string>();
-            await foreach (var segment in _processor.ProcessAsync(samples))
+            
+            await foreach (var segment in processor.ProcessAsync(samples))
             {
-                result.Add(segment.Text);
+                if (!string.IsNullOrWhiteSpace(segment.Text) && segment.Text.Trim().Length > 1)
+                {
+                    result.Add(segment.Text);
+                }
             }
 
-            return string.Join(" ", result).Trim();
+            string transcribedText = string.Join(" ", result).Trim();
+            
+            if (!string.IsNullOrEmpty(transcribedText))
+            {
+                _lastContext = transcribedText.Length > 100 
+                    ? transcribedText.Substring(transcribedText.Length - 100) 
+                    : transcribedText;
+            }
+
+            return transcribedText;
         }
 
         private float[] ConvertPcmToFloat(byte[] bytes)
@@ -51,8 +87,7 @@ namespace VoiceInputApp.Services
 
         public void Dispose()
         {
-            _processor.Dispose();
-            _factory.Dispose();
+            _factory?.Dispose();
         }
     }
 }
